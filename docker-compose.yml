@@ -1,0 +1,63 @@
+# Orbis — Déploiement Docker Compose
+#
+#   docker compose up -d --build
+#
+# Puis ouvrez http://localhost:8080
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: orbis-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-orbis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD doit être défini dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:-orbis}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-orbis}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Décommentez pour exposer la BDD en dev :
+    # ports:
+    #   - "5432:5432"
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: orbis-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-orbis}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD doit être défini dans .env}@db:5432/${POSTGRES_DB:-orbis}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access-secret-please-use-a-long-random-string}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret-please-use-a-long-random-string}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
+      PORT: 4000
+      HOST: 0.0.0.0
+      # URL réellement exposée aux utilisateurs (SSO, reset password, Stripe).
+      # Indépendante de APP_URL, qui peut rester sur :5173 pour le dev Vite.
+      APP_URL: ${PUBLIC_APP_URL:-http://localhost:8080}
+      UPLOAD_DIR: ./uploads
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
+      SEED_ON_START: ${SEED_ON_START:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY:-}
+      ALLOW_PRIVATE_OUTBOUND_URLS: ${ALLOW_PRIVATE_OUTBOUND_URLS:-false}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+    ports:
+      - '${APP_PORT:-8080}:4000'
+    volumes:
+      - uploads:/app/packages/backend/uploads
+
+volumes:
+  pgdata:
+  uploads:

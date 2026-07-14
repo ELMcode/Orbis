@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: orbis
+          POSTGRES_PASSWORD: orbis
+          POSTGRES_DB: orbis_test
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U orbis -d orbis_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CI: true
+      DATABASE_URL: postgresql://orbis:orbis@localhost:55432/orbis_test?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-for-orbis-please-change
+      JWT_REFRESH_SECRET: ci-refresh-secret-for-orbis-please-change
+      RATE_LIMIT_AUTH_MAX: 5
+      RATE_LIMIT_API_MAX: 1000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter ./packages/backend exec prisma generate
+
+      - name: Verify production seed guard
+        run: |
+          if NODE_ENV=production SEED_ON_START=true DATABASE_URL="$DATABASE_URL" pnpm --filter ./packages/backend exec tsx src/config.ts 2>/dev/null; then
+            echo "Production seed guard did not reject startup"; exit 1
+          fi
+
+      - name: Verify production migrations
+        run: pnpm --filter ./packages/backend exec prisma migrate deploy
+
+      - name: Verify PostgreSQL backup restore
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          POSTGRES_USER: orbis
+          POSTGRES_DB: orbis_test
+        run: ./scripts/verify-postgres-backup-restore.sh
+
+      - name: Typecheck
+        run: pnpm -r run typecheck
+
+      - name: Test frontend
+        run: pnpm --filter ./packages/frontend run test
+
+      - name: Test backend
+        run: pnpm --filter ./packages/backend run test
+
+      - name: Build
+        run: pnpm -r run build
+
+  collector-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build collector Docker image
+        run: docker build --file docker/collector.Dockerfile --tag orbis-collector:ci .
