@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.6rem;
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 47% 10%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 217 33% 15%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 96%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 96%;
+
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    font-variation-settings: 'opsz' 32;
+  }
+  /* Scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+}
+
+/* React Flow overrides */
+.react-flow__attribution {
+  display: none;
+}
+.react-flow__minimap {
+  @apply rounded-lg overflow-hidden border border-border;
+}
+.react-flow__controls {
+  @apply rounded-lg overflow-hidden border border-border shadow-lg;
+}
+.react-flow__controls-button {
+  @apply bg-card text-foreground border-border;
+}
+.react-flow__controls-button:hover {
+  @apply bg-accent;
+}
+.react-flow__panel {
+  @apply rounded-lg;
+}
+.react-flow__edge-path {
+  stroke-width: 2;
+}
+.react-flow__handle {
+  width: 9px;
+  height: 9px;
+  @apply border-2 border-background bg-muted-foreground/60;
+}
+.react-flow__handle:hover {
+  @apply bg-primary;
+}
+
+/* Composite utilities. */
+.glass {
+  @apply bg-card/80 backdrop-blur-md border border-border;
+}
+
+/* Animations radix (tailwindcss-animate) */
+@layer utilities {
+  .animate-in {
+    animation-duration: 150ms;
+    animation-fill-mode: both;
+  }
+  .animate-out {
+    animation-duration: 150ms;
+    animation-fill-mode: both;
+  }
+  .fade-in-0 { animation-name: fade-in-0; }
+  .fade-out-0 { animation-name: fade-out-0; }
+  .zoom-in-95 { animation-name: zoom-in-95; }
+  .zoom-out-95 { animation-name: zoom-out-95; }
+  @keyframes fade-in-0 { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes fade-out-0 { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes zoom-in-95 { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+  @keyframes zoom-out-95 { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.95); } }
+}
+
+/* Animations des dialogues (centrage par grille — sans translate pour ne pas
+   écraser le centrage pendant l'animation) */
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes dialog-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes dialog-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.96); }
+}
