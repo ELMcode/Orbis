@@ -1,4 +1,4 @@
-// Orbis — Schéma de données (multi-tenant SaaS)
+// Orbis - Multi-tenant SaaS data schema
 generator client {
   provider = "prisma-client-js"
 }
@@ -52,7 +52,7 @@ enum IncidentStatus {
 }
 
 /// Une organisation = un tenant (un client entreprise).
-/// Toutes les données business (sites, devices, diagrams…) portent un organizationId.
+/// All business data (sites, devices, diagrams, and more) carries an organizationId.
 model Organization {
   id               String   @id @default(cuid())
   name             String
@@ -110,8 +110,8 @@ model Organization {
   @@index([scheduledDeletionAt])
 }
 
-/// Appartenance d'un utilisateur à une organisation, avec un rôle par org.
-/// Un même utilisateur peut être ADMIN dans une org et VIEWER dans une autre.
+/// User membership in an organization, with a role per organization.
+/// The same user can be an ADMIN in one organization and a VIEWER in another.
 model Membership {
   id             String           @id @default(cuid())
   userId         String
@@ -129,7 +129,7 @@ model Membership {
   @@index([organizationId])
 }
 
-/// Invitation en attente (par email) à rejoindre une organisation.
+/// Pending invitation by email to join an organization.
 model Invitation {
   id             String         @id @default(cuid())
   organizationId String
@@ -147,7 +147,7 @@ model Invitation {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Utilisateurs globaux (pas rattachés à une org directement)
+// Global users (not directly attached to an organization).
 // ─────────────────────────────────────────────────────────────
 
 model User {
@@ -207,7 +207,7 @@ model AuditLog {
   organizationId String?
   userId         String?
   action         String // ex: "diagram.update", "user.create"
-  target         String? // type d'entité
+  target         String? // entity type
   targetId       String?
   meta           Json?
   ip             String?
@@ -291,7 +291,7 @@ model Site {
   organizationId String
   name           String
   description    String?
-  parentId       String? // arborescence Site → Bâtiment → Baie
+  parentId       String? // Site -> Building -> Rack hierarchy
   parent         Site?    @relation("SiteTree", fields: [parentId], references: [id], onDelete: SetNull)
   children       Site[]   @relation("SiteTree")
   location       String?
@@ -327,8 +327,8 @@ model Site {
   @@index([parentId])
 }
 
-// Affectation d'un utilisateur (au sein d'une org) à des sites précis.
-// Un ADMIN sans siteScopes voit tous les sites de son org.
+// Assign a user within an organization to specific sites.
+// An ADMIN without siteScopes can see every site in the organization.
 model UserSite {
   id           String   @id @default(cuid())
   membershipId String
@@ -348,7 +348,7 @@ model Diagram {
   name           String
   siteId         String?
   site           Site?    @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  // Graphe React Flow sérialisé
+  // Serialized React Flow graph.
   nodes          Json     @default("[]")
   edges          Json     @default("[]")
   viewport       Json?
@@ -367,7 +367,7 @@ model Diagram {
   @@index([siteId])
 }
 
-// Historique léger des versions de diagramme (undo/redo côté serveur)
+// Lightweight diagram version history (server-side undo/redo).
 model DiagramVersion {
   id        String   @id @default(cuid())
   diagramId String
@@ -381,7 +381,7 @@ model DiagramVersion {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Équipements (devices) — liés à un nœud du diagram OU à une baie
+// Devices linked to a diagram node or a rack.
 // ─────────────────────────────────────────────────────────────
 
 enum DeviceType {
@@ -438,11 +438,11 @@ model Device {
   siteId         String?
   site           Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
 
-  // Référence croisée avec le nœud du diagram (nodeId dans React Flow)
+  // Cross-reference to the diagram node (nodeId in React Flow).
   diagramId     String?
   diagramNodeId String?
 
-  // Métadonnées techniques
+  // Technical metadata.
   brand    String?
   model    String?
   serial   String?
@@ -501,7 +501,7 @@ model Device {
 }
 
 // ─────────────────────────────────────────────────────────────
-// IPAM / VLAN — source of truth réseau
+// IPAM / VLAN - network source of truth.
 // ─────────────────────────────────────────────────────────────
 
 enum IpAddressStatus {
@@ -628,7 +628,7 @@ model IpAddress {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Référentiel avancé — dépendances, contrats, champs et vues
+// Advanced source of truth - dependencies, contracts, fields, and views.
 // ─────────────────────────────────────────────────────────────
 
 enum ApplicationDependencyType {
@@ -933,7 +933,7 @@ model Cable {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Découverte automatique — collectors locaux et runs
+// Automatic discovery - local collectors and runs.
 // ─────────────────────────────────────────────────────────────
 
 enum DiscoveryCollectorStatus {
@@ -1484,7 +1484,7 @@ model EntityComment {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Ports & câblage
+// Ports and cabling.
 // ─────────────────────────────────────────────────────────────
 
 enum PortType {
@@ -1516,14 +1516,14 @@ model Port {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Galerie d'images & pièces jointes (le "clic = détail")
+// Image gallery and attachments (click for details).
 // ─────────────────────────────────────────────────────────────
 
 model DeviceImage {
   id        String   @id @default(cuid())
   deviceId  String
   device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  // Chemin relatif sous UPLOAD_DIR, ex: "images/abcd-ef123456.png"
+  // Relative path below UPLOAD_DIR, for example: "images/abcd-ef123456.png".
   path      String
   mimeType  String
   thumbPath String?
@@ -1576,7 +1576,7 @@ model RackSlot {
   rack      Rack     @relation(fields: [rackId], references: [id], onDelete: Cascade)
   deviceId  String   @unique
   device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  startUnit Int // position du U de départ (bas en haut)
+  startUnit Int // starting rack unit position (bottom to top)
   units     Int      @default(1) // hauteur en U (1U, 2U…)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

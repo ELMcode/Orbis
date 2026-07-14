@@ -1,10 +1,10 @@
 name: orbis
 
-# Orbis — Déploiement Docker Compose
+# Orbis - Docker Compose deployment
 #
 #   docker compose up -d --build
 #
-# Puis ouvrez http://localhost:8080
+# Then open http://localhost:8080
 
 services:
   db:
@@ -22,7 +22,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # Décommentez pour exposer la BDD en dev :
+    # Uncomment to expose the database during development:
     # ports:
     #   - "5432:5432"
 
@@ -44,8 +44,8 @@ services:
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
       PORT: 4000
       HOST: 0.0.0.0
-      # URL réellement exposée aux utilisateurs (SSO, reset password, Stripe).
-      # Indépendante de APP_URL, qui peut rester sur :5173 pour le dev Vite.
+      # URL exposed to users (SSO, password reset, Stripe).
+      # Independent from APP_URL, which can remain on :5173 for Vite development.
       APP_URL: ${PUBLIC_APP_URL:-http://localhost:8080}
       UPLOAD_DIR: ./uploads
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}

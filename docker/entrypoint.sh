@@ -1,14 +1,14 @@
 #!/bin/sh
-# Orbis — point d'entrée du conteneur
+# Orbis - container entrypoint
 #  1. Applique les migrations Prisma
-#  2. Ne seed QUE si la base est vide (évite les doublons au redémarrage)
+#  2. Seed only when the database is empty (prevents duplicates on restart).
 #  3. Lance le serveur
 set -e
 
 echo "→ Application des migrations…"
 ./node_modules/.bin/prisma migrate deploy
 
-# Seed uniquement si la base ne contient aucun utilisateur
+# Seed only when the database contains no users.
 if [ "$SEED_ON_START" != "false" ]; then
   USER_COUNT=$(node -e "const{PrismaClient}=require('@prisma/client');const p=new PrismaClient();p.user.count().then(n=>{console.log(n);return p.\$disconnect();}).catch(()=>{console.log(0);})")
   if [ "$USER_COUNT" = "0" ]; then

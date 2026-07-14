@@ -51,7 +51,7 @@ async function buildServer(): Promise<FastifyInstance> {
           : { target: 'pino-pretty', options: { colorize: true, translateTime: 'HH:MM:ss' } },
     },
     bodyLimit: config.upload.maxBytes * 2,
-    trustProxy: config.trustProxy, // req.ip correct derrière un reverse proxy
+      trustProxy: config.trustProxy, // Ensure req.ip is correct behind a reverse proxy.
   });
 
   // ─── Rate limiting global ────────────────────────────────
@@ -235,7 +235,7 @@ async function buildServer(): Promise<FastifyInstance> {
   // ─── Servir les uploads en PROD uniquement via le build statique du frontend ──
   // NOTE : les uploads ne sont PLUS servis publiquement.
   // An authenticated GET /api/media/file/:path serves them after access checks.
-  // En dev, Vite proxie /uploads vers le backend ; on garde le static pour le dev local.
+  // In development, Vite proxies /uploads to the backend; keep static serving for local development.
   if (!config.isProd) {
     await app.register(staticPlugin, {
       root: path.resolve(process.cwd(), config.upload.dir),
