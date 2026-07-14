@@ -1,0 +1,1585 @@
+// Orbis — Schéma de données (multi-tenant SaaS)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Multi-tenant : Organization + Membership
+// ─────────────────────────────────────────────────────────────
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum MembershipRole {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+}
+
+enum PublicApiKeyStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum WebhookEndpointStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum IncidentStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+/// Une organisation = un tenant (un client entreprise).
+/// Toutes les données business (sites, devices, diagrams…) portent un organizationId.
+model Organization {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  plan             Plan     @default(FREE)
+  stripeCustomerId String?
+  deletionRequestedAt DateTime?
+  scheduledDeletionAt DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  memberships            Membership[]
+  invitations            Invitation[]
+  sites                  Site[]
+  diagrams               Diagram[]
+  devices                Device[]
+  racks                  Rack[]
+  providers              Provider[]
+  circuits               Circuit[]
+  patchPanels            PatchPanel[]
+  cables                 Cable[]
+  vrfs                   Vrf[]
+  vlans                  Vlan[]
+  ipPrefixes             IpPrefix[]
+  ipAddresses            IpAddress[]
+  diagramComments        DiagramComment[]
+  entityComments         EntityComment[]
+  discoveryCollectors    DiscoveryCollector[]
+  discoveryRuns          DiscoveryRun[]
+  discoveryStates        DiscoveryState[]
+  discoveryEvents        DiscoveryEvent[]
+  discoveryCollectorLogs DiscoveryCollectorLog[]
+  availabilitySamples    AvailabilitySample[]
+  monitoringPolicy       MonitoringPolicy?
+  maintenanceWindows     MaintenanceWindow[]
+  incidents              Incident[]
+  alertSettings          AlertSettings?
+  alertDeliveries        AlertDelivery[]
+  publicApiKeys          PublicApiKey[]
+  webhookEndpoints       WebhookEndpoint[]
+  webhookDeliveries      WebhookDelivery[]
+  reportSchedules        ReportSchedule[]
+  securityPolicy         SecurityPolicy?
+  applicationDependencies ApplicationDependency[]
+  assetContracts         AssetContract[]
+  customFieldDefinitions CustomFieldDefinition[]
+  tagDefinitions         TagDefinition[]
+  savedViews             SavedView[]
+  auditLogs              AuditLog[]
+  discoveryProposals     DiscoveryProposal[]
+  notifications          UserNotification[]
+  integrationCredentials IntegrationCredential[]
+
+  @@index([slug])
+  @@index([scheduledDeletionAt])
+}
+
+/// Appartenance d'un utilisateur à une organisation, avec un rôle par org.
+/// Un même utilisateur peut être ADMIN dans une org et VIEWER dans une autre.
+model Membership {
+  id             String           @id @default(cuid())
+  userId         String
+  organizationId String
+  role           MembershipRole   @default(VIEWER)
+  permissions    String[]         @default([])
+  status         MembershipStatus @default(ACTIVE)
+  joinedAt       DateTime         @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  siteScopes   UserSite[]
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+/// Invitation en attente (par email) à rejoindre une organisation.
+model Invitation {
+  id             String         @id @default(cuid())
+  organizationId String
+  email          String
+  role           MembershipRole @default(VIEWER)
+  permissions    String[]       @default([])
+  tokenHash      String         @unique
+  expiresAt      DateTime
+  createdAt      DateTime       @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Utilisateurs globaux (pas rattachés à une org directement)
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  avatarUrl    String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships                 Membership[]
+  refreshTokens               AuditToken[]
+  passwordResets              PasswordResetToken[]
+  audits                      AuditLog[]
+  createdSites                Site[]               @relation("SiteCreatedBy")
+  createdDiags                Diagram[]            @relation("DiagramCreatedBy")
+  editedDevices               Device[]             @relation("DeviceEditedBy")
+  diagramComments             DiagramComment[]
+  entityComments              EntityComment[]
+  acknowledgedDiscoveryEvents DiscoveryEvent[]     @relation("DiscoveryEventAcknowledgedBy")
+  createdSavedViews           SavedView[]          @relation("SavedViewCreatedBy")
+  createdDiscoveryProposals   DiscoveryProposal[]  @relation("DiscoveryProposalCreatedBy")
+  reviewedDiscoveryProposals  DiscoveryProposal[]  @relation("DiscoveryProposalReviewedBy")
+  notifications               UserNotification[]
+
+  @@index([email])
+}
+
+model AuditToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id             String        @id @default(cuid())
+  organizationId String?
+  userId         String?
+  action         String // ex: "diagram.update", "user.create"
+  target         String? // type d'entité
+  targetId       String?
+  meta           Json?
+  ip             String?
+  createdAt      DateTime      @default(now())
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([createdAt])
+}
+
+model PublicApiKey {
+  id             String             @id @default(cuid())
+  organizationId String
+  name           String
+  tokenPrefix    String
+  tokenHash      String             @unique
+  scopes         String[]           @default([])
+  status         PublicApiKeyStatus @default(ACTIVE)
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([tokenPrefix])
+}
+
+model WebhookEndpoint {
+  id             String                @id @default(cuid())
+  organizationId String
+  name           String
+  url            String
+  secret         String
+  events         String[]              @default([])
+  status         WebhookEndpointStatus @default(ACTIVE)
+  lastSuccessAt  DateTime?
+  lastFailureAt  DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries   WebhookDelivery[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model WebhookDelivery {
+  id             String                @id @default(cuid())
+  organizationId String
+  endpointId     String
+  eventType      String
+  payload        Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  statusCode     Int?
+  error          String?
+  deliveredAt    DateTime?
+  createdAt      DateTime              @default(now())
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([endpointId])
+  @@index([eventType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Organisation : Sites (arborescence) → Diagrammes
+// ─────────────────────────────────────────────────────────────
+
+model Site {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  parentId       String? // arborescence Site → Bâtiment → Baie
+  parent         Site?    @relation("SiteTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Site[]   @relation("SiteTree")
+  location       String?
+  customFields   Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdById    String?
+  createdBy      User?    @relation("SiteCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  diagrams            Diagram[]
+  devices             Device[]
+  racks               Rack[]
+  vlans               Vlan[]
+  vrfs                Vrf[]
+  ipPrefixes          IpPrefix[]
+  ipAddresses         IpAddress[]
+  circuits            Circuit[]
+  patchPanels         PatchPanel[]
+  discoveryCollectors DiscoveryCollector[]
+  discoveryRuns       DiscoveryRun[]
+  discoveryStates     DiscoveryState[]
+  discoveryEvents     DiscoveryEvent[]
+  discoveryProposals  DiscoveryProposal[]
+  availabilitySamples AvailabilitySample[]
+  maintenanceWindows  MaintenanceWindow[]
+  incidents           Incident[]
+  reportSchedules     ReportSchedule[]
+  userScopes          UserSite[]
+
+  @@index([organizationId])
+  @@index([organizationId, name])
+  @@index([parentId])
+}
+
+// Affectation d'un utilisateur (au sein d'une org) à des sites précis.
+// Un ADMIN sans siteScopes voit tous les sites de son org.
+model UserSite {
+  id           String   @id @default(cuid())
+  membershipId String
+  siteId       String
+  createdAt    DateTime @default(now())
+
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  site       Site       @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, siteId])
+  @@index([siteId])
+}
+
+model Diagram {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  siteId         String?
+  site           Site?    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  // Graphe React Flow sérialisé
+  nodes          Json     @default("[]")
+  edges          Json     @default("[]")
+  viewport       Json?
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdById    String?
+  createdBy      User?    @relation("DiagramCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  history      DiagramVersion[]
+  comments     DiagramComment[]
+
+  @@index([organizationId])
+  @@index([organizationId, updatedAt])
+  @@index([siteId])
+}
+
+// Historique léger des versions de diagramme (undo/redo côté serveur)
+model DiagramVersion {
+  id        String   @id @default(cuid())
+  diagramId String
+  nodes     Json
+  edges     Json
+  message   String?
+  createdAt DateTime @default(now())
+  diagram   Diagram  @relation(fields: [diagramId], references: [id], onDelete: Cascade)
+
+  @@index([diagramId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Équipements (devices) — liés à un nœud du diagram OU à une baie
+// ─────────────────────────────────────────────────────────────
+
+enum DeviceType {
+  SWITCH
+  ROUTER
+  FIREWALL
+  SERVER
+  HYPERVISOR
+  WORKSTATION
+  PRINTER
+  CAMERA
+  CONTROLLER
+  PATCH_PANEL
+  MODEM
+  PHONE
+  IOT
+  OT
+  NAS
+  SAN
+  PDU
+  UPS
+  ACCESS_POINT
+  LOAD_BALANCER
+  INTERNET
+  CLOUD
+  VM
+  RACK
+  OTHER
+}
+
+enum DeviceStatus {
+  ONLINE
+  WARNING
+  OFFLINE
+  MAINTENANCE
+  UNKNOWN
+}
+
+enum DeviceLifecycleStatus {
+  PLANNED
+  IN_SERVICE
+  MAINTENANCE
+  END_OF_SUPPORT
+  REPLACEMENT_DUE
+  RETIRED
+}
+
+model Device {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  type           DeviceType   @default(SWITCH)
+  status         DeviceStatus @default(UNKNOWN)
+  siteId         String?
+  site           Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  // Référence croisée avec le nœud du diagram (nodeId dans React Flow)
+  diagramId     String?
+  diagramNodeId String?
+
+  // Métadonnées techniques
+  brand    String?
+  model    String?
+  serial   String?
+  assetTag String?
+  ip       String?
+  mac      String?
+  vlan     String?
+  location String?
+  notes    String?
+
+  // Achat & garantie
+  purchaseDate DateTime?
+  warrantyEnd  DateTime?
+  supportEnd   DateTime?
+  replacementDue DateTime?
+  lifecycleStatus DeviceLifecycleStatus @default(IN_SERVICE)
+  owner        String?
+  cost         Float?
+
+  // Tags & attributs libres
+  tags         String[] @default([])
+  customFields Json?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  editedById String?
+  editedBy   User?    @relation("DeviceEditedBy", fields: [editedById], references: [id], onDelete: SetNull)
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ports           Port[]
+  images          DeviceImage[]
+  attachments     Attachment[]
+  rackSlot        RackSlot?
+  ipAddresses     IpAddress[]
+  cableAEndpoints Cable[]          @relation("CableDeviceA")
+  cableBEndpoints Cable[]          @relation("CableDeviceB")
+  discoveryStates DiscoveryState[]
+  discoveryEvents DiscoveryEvent[]
+  availabilitySamples AvailabilitySample[]
+  maintenanceWindows MaintenanceWindow[]
+  incidents          Incident[]
+  comments        EntityComment[]
+  dependencySources ApplicationDependency[] @relation("DependencySourceDevice")
+  dependencyTargets ApplicationDependency[] @relation("DependencyTargetDevice")
+  assetContracts    AssetContract[]
+
+  @@index([organizationId])
+  @@index([organizationId, name])
+  @@index([organizationId, updatedAt])
+  @@index([siteId])
+  @@index([type])
+  @@index([status])
+  @@index([lifecycleStatus])
+  @@index([supportEnd])
+  @@index([replacementDue])
+}
+
+// ─────────────────────────────────────────────────────────────
+// IPAM / VLAN — source of truth réseau
+// ─────────────────────────────────────────────────────────────
+
+enum IpAddressStatus {
+  RESERVED
+  ASSIGNED
+  DHCP
+  DEPRECATED
+  UNKNOWN
+}
+
+model Vrf {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  name           String
+  rd             String?
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization  Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site          Site?               @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  prefixes      IpPrefix[]
+  routeTargets  VrfRouteTarget[]
+
+  @@unique([organizationId, siteId, name])
+  @@index([organizationId])
+  @@index([organizationId, name])
+  @@index([siteId])
+}
+
+model VrfRouteTarget {
+  id        String   @id @default(cuid())
+  vrfId     String
+  rt        String
+  direction String
+  createdAt DateTime @default(now())
+
+  vrf Vrf @relation(fields: [vrfId], references: [id], onDelete: Cascade)
+
+  @@unique([vrfId, rt, direction])
+  @@index([vrfId])
+}
+
+model Vlan {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  vlanId         Int
+  name           String
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  prefixes     IpPrefix[]
+
+  @@unique([organizationId, siteId, vlanId])
+  @@index([organizationId])
+  @@index([organizationId, vlanId])
+  @@index([siteId])
+}
+
+model IpPrefix {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  vlanId         String?
+  vrfId          String?
+  cidr           String
+  name           String?
+  gateway        String?
+  description    String?
+  customFields   Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  vlan         Vlan?        @relation(fields: [vlanId], references: [id], onDelete: SetNull)
+  vrf          Vrf?         @relation(fields: [vrfId], references: [id], onDelete: SetNull)
+  addresses    IpAddress[]
+  comments     EntityComment[]
+
+  @@unique([organizationId, siteId, vrfId, cidr])
+  @@index([organizationId])
+  @@index([organizationId, cidr])
+  @@index([siteId])
+  @@index([vlanId])
+  @@index([vrfId])
+}
+
+model IpAddress {
+  id                   String          @id @default(cuid())
+  organizationId       String
+  siteId               String?
+  prefixId             String?
+  deviceId             String?
+  address              String
+  status               IpAddressStatus @default(UNKNOWN)
+  dnsName              String?
+  interfaceLabel       String?
+  reservedBy           String?
+  reservationExpiresAt DateTime?
+  description          String?
+  customFields         Json?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  prefix       IpPrefix?    @relation(fields: [prefixId], references: [id], onDelete: SetNull)
+  device       Device?      @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  comments     EntityComment[]
+
+  @@unique([organizationId, siteId, address])
+  @@index([organizationId])
+  @@index([organizationId, address])
+  @@index([organizationId, status])
+  @@index([siteId])
+  @@index([prefixId])
+  @@index([deviceId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Référentiel avancé — dépendances, contrats, champs et vues
+// ─────────────────────────────────────────────────────────────
+
+enum ApplicationDependencyType {
+  APPLICATION
+  DATABASE
+  SERVICE
+  NETWORK
+  EXTERNAL
+  STORAGE
+  SECURITY
+  OTHER
+}
+
+enum ApplicationDependencyStatus {
+  ACTIVE
+  DEGRADED
+  DEPRECATED
+  UNKNOWN
+}
+
+enum Criticality {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model ApplicationDependency {
+  id             String                      @id @default(cuid())
+  organizationId String
+  name           String
+  dependencyType ApplicationDependencyType   @default(APPLICATION)
+  status         ApplicationDependencyStatus @default(ACTIVE)
+  criticality    Criticality                 @default(MEDIUM)
+  sourceDeviceId String?
+  targetDeviceId String?
+  sourceName     String?
+  targetName     String?
+  protocol       String?
+  port           Int?
+  description    String?
+  owner          String?
+  tags           String[]                    @default([])
+  customFields   Json?
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sourceDevice Device?      @relation("DependencySourceDevice", fields: [sourceDeviceId], references: [id], onDelete: SetNull)
+  targetDevice Device?      @relation("DependencyTargetDevice", fields: [targetDeviceId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, name])
+  @@index([organizationId, dependencyType])
+  @@index([organizationId, criticality])
+  @@index([sourceDeviceId])
+  @@index([targetDeviceId])
+}
+
+enum AssetContractType {
+  LICENSE
+  SUPPORT
+  MAINTENANCE
+  WARRANTY
+  SUBSCRIPTION
+  SERVICE
+  OTHER
+}
+
+enum AssetContractStatus {
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  TERMINATED
+  DRAFT
+}
+
+model AssetContract {
+  id             String              @id @default(cuid())
+  organizationId String
+  deviceId       String?
+  name           String
+  type           AssetContractType   @default(LICENSE)
+  status         AssetContractStatus @default(ACTIVE)
+  vendor         String?
+  contractNumber String?
+  seatsTotal     Int?
+  seatsUsed      Int?
+  startDate      DateTime?
+  endDate        DateTime?
+  renewalDate    DateTime?
+  owner          String?
+  cost           Float?
+  notes          String?
+  tags           String[]            @default([])
+  customFields   Json?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  device       Device?      @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, name])
+  @@index([organizationId, status])
+  @@index([organizationId, endDate])
+  @@index([deviceId])
+}
+
+enum CustomFieldTarget {
+  DEVICE
+  SITE
+  IP_PREFIX
+  IP_ADDRESS
+  CONTRACT
+  DEPENDENCY
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  DATE
+  URL
+  SELECT
+}
+
+model CustomFieldDefinition {
+  id             String            @id @default(cuid())
+  organizationId String
+  target         CustomFieldTarget
+  key            String
+  label          String
+  type           CustomFieldType   @default(TEXT)
+  required       Boolean           @default(false)
+  options        String[]          @default([])
+  defaultValue   Json?
+  description    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, target, key])
+  @@index([organizationId])
+  @@index([organizationId, target])
+}
+
+model TagDefinition {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  color          String   @default("#2563eb")
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+enum SavedViewTarget {
+  DEVICES
+  SITES
+  IPAM
+  DCIM
+  CONTRACTS
+  DEPENDENCIES
+  DISCOVERY
+}
+
+model SavedView {
+  id             String          @id @default(cuid())
+  organizationId String
+  createdById    String?
+  name           String
+  target         SavedViewTarget @default(DEVICES)
+  filters        Json            @default("{}")
+  columns        String[]        @default([])
+  shared         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("SavedViewCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, target])
+  @@index([createdById])
+}
+
+model Provider {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  contactName    String?
+  contactEmail   String?
+  supportPhone   String?
+  portalUrl      String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  circuits     Circuit[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([organizationId, name])
+}
+
+model Circuit {
+  id             String    @id @default(cuid())
+  organizationId String
+  siteId         String?
+  providerId     String?
+  name           String
+  circuitId      String?
+  type           String?
+  status         String    @default("ACTIVE")
+  bandwidthMbps  Int?
+  demarcation    String?
+  installDate    DateTime?
+  renewalDate    DateTime?
+  monthlyCost    Float?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  provider     Provider?    @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  cables       Cable[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, name])
+  @@index([siteId])
+  @@index([providerId])
+  @@index([status])
+}
+
+model PatchPanel {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  rackId         String?
+  name           String
+  portsCount     Int      @default(24)
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  rack         Rack?        @relation(fields: [rackId], references: [id], onDelete: SetNull)
+  cablesA      Cable[]      @relation("CablePatchPanelA")
+  cablesB      Cable[]      @relation("CablePatchPanelB")
+
+  @@index([organizationId])
+  @@index([organizationId, name])
+  @@index([siteId])
+  @@index([rackId])
+}
+
+model Cable {
+  id             String   @id @default(cuid())
+  organizationId String
+  circuitId      String?
+  label          String
+  cableType      String   @default("COPPER")
+  status         String   @default("CONNECTED")
+  lengthMeters   Float?
+  aDeviceId      String?
+  aPortLabel     String?
+  aPatchPanelId  String?
+  aPatchPort     String?
+  bDeviceId      String?
+  bPortLabel     String?
+  bPatchPanelId  String?
+  bPatchPort     String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  circuit      Circuit?     @relation(fields: [circuitId], references: [id], onDelete: SetNull)
+  aDevice      Device?      @relation("CableDeviceA", fields: [aDeviceId], references: [id], onDelete: SetNull)
+  bDevice      Device?      @relation("CableDeviceB", fields: [bDeviceId], references: [id], onDelete: SetNull)
+  aPatchPanel  PatchPanel?  @relation("CablePatchPanelA", fields: [aPatchPanelId], references: [id], onDelete: SetNull)
+  bPatchPanel  PatchPanel?  @relation("CablePatchPanelB", fields: [bPatchPanelId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, label])
+  @@index([circuitId])
+  @@index([aDeviceId])
+  @@index([bDeviceId])
+  @@index([aPatchPanelId])
+  @@index([bPatchPanelId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Découverte automatique — collectors locaux et runs
+// ─────────────────────────────────────────────────────────────
+
+enum DiscoveryCollectorStatus {
+  ACTIVE
+  PAUSED
+  REVOKED
+  ERROR
+}
+
+enum DiscoveryCollectorRole {
+  PRIMARY
+  SECONDARY
+  STANDBY
+}
+
+enum DiscoveryRunStatus {
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+enum DiscoveryDeviceState {
+  ONLINE
+  DOWN
+  UNKNOWN
+}
+
+enum DiscoveryEventType {
+  NEW_DEVICE
+  DEVICE_REAPPEARED
+  DEVICE_DOWN
+  IP_CHANGED
+  PORTS_CHANGED
+  IP_CONFLICT
+  MAC_CONFLICT
+  LATENCY_HIGH
+}
+
+enum DiscoveryEventSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertChannel {
+  EMAIL
+  WEBHOOK
+  SLACK
+  TEAMS
+}
+
+enum AlertDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model DiscoveryCollector {
+  id                 String                   @id @default(cuid())
+  organizationId     String
+  siteId             String?
+  name               String
+  tokenHash          String
+  tokenLastRotatedAt DateTime                 @default(now())
+  tokenExpiresAt     DateTime?
+  tokenRotationDays  Int?
+  nextTokenRotationAt DateTime?
+  status             DiscoveryCollectorStatus @default(ACTIVE)
+  role               DiscoveryCollectorRole   @default(PRIMARY)
+  priority           Int                      @default(100)
+  failoverAfterMinutes Int                    @default(15)
+  defaultCidrs       String[]                 @default([])
+  defaultPorts       Int[]                    @default([])
+  autoDiagram        Boolean                  @default(true)
+  version            String?
+  lastSeenAt         DateTime?
+  lastIp             String?
+  lastSummary        Json?
+  notes              String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site?                   @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  runs         DiscoveryRun[]
+  states       DiscoveryState[]
+  events       DiscoveryEvent[]
+  logs         DiscoveryCollectorLog[]
+  samples      AvailabilitySample[]
+
+  @@index([organizationId])
+  @@index([siteId])
+  @@index([status])
+  @@index([tokenExpiresAt])
+  @@index([nextTokenRotationAt])
+  @@index([organizationId, siteId, status, priority])
+}
+
+model SecurityPolicy {
+  id                       String   @id @default(cuid())
+  organizationId           String   @unique
+  requireDeviceSite        Boolean  @default(true)
+  requireDeviceOwner       Boolean  @default(true)
+  riskyPorts               Int[]    @default([21, 23, 25, 53, 110, 143, 161, 389, 445, 1433, 1521, 3306, 5432, 5900, 6379, 9200, 9300, 11211, 27017])
+  criticalPorts            Int[]    @default([23, 445, 3389, 5900, 6379, 9200, 11211, 27017])
+  weakSnmpCommunities      String[] @default(["public", "private"])
+  firmwareUnknownDays      Int      @default(30)
+  warrantyWarningDays      Int      @default(90)
+  collectorTokenMaxAgeDays Int      @default(180)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+enum DiscoveryCollectorLogLevel {
+  INFO
+  WARNING
+  ERROR
+  DIAGNOSTIC
+}
+
+model DiscoveryCollectorLog {
+  id             String                     @id @default(cuid())
+  organizationId String
+  collectorId    String
+  level          DiscoveryCollectorLogLevel @default(INFO)
+  message        String
+  meta           Json?
+  createdAt      DateTime                   @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  collector    DiscoveryCollector @relation(fields: [collectorId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+  @@index([collectorId])
+  @@index([level])
+  @@index([createdAt])
+}
+
+model DiscoveryRun {
+  id             String             @id @default(cuid())
+  organizationId String
+  collectorId    String
+  siteId         String?
+  status         DiscoveryRunStatus @default(SUCCESS)
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  summary        Json
+  raw            Json?
+  createdAt      DateTime           @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  collector    DiscoveryCollector @relation(fields: [collectorId], references: [id], onDelete: Cascade)
+  site         Site?              @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  events       DiscoveryEvent[]
+  samples      AvailabilitySample[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([collectorId])
+  @@index([siteId])
+  @@index([createdAt])
+}
+
+model DiscoveryState {
+  id              String               @id @default(cuid())
+  organizationId  String
+  collectorId     String
+  siteId          String?
+  deviceId        String
+  status          DiscoveryDeviceState @default(UNKNOWN)
+  firstSeenAt     DateTime             @default(now())
+  lastSeenAt      DateTime             @default(now())
+  lastAddress     String?
+  lastHostname    String?
+  lastPorts       Int[]                @default([])
+  lastFingerprint String?
+  missCount       Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  collector    DiscoveryCollector @relation(fields: [collectorId], references: [id], onDelete: Cascade)
+  site         Site?              @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  device       Device             @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([collectorId, deviceId])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, lastSeenAt])
+  @@index([collectorId])
+  @@index([siteId])
+  @@index([deviceId])
+  @@index([status])
+  @@index([lastSeenAt])
+}
+
+model DiscoveryEvent {
+  id               String                 @id @default(cuid())
+  organizationId   String
+  collectorId      String
+  runId            String?
+  siteId           String?
+  deviceId         String?
+  type             DiscoveryEventType
+  severity         DiscoveryEventSeverity @default(INFO)
+  title            String
+  message          String?
+  meta             Json?
+  acknowledgedAt   DateTime?
+  acknowledgedById String?
+  createdAt        DateTime               @default(now())
+
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  collector      DiscoveryCollector @relation(fields: [collectorId], references: [id], onDelete: Cascade)
+  run            DiscoveryRun?      @relation(fields: [runId], references: [id], onDelete: SetNull)
+  site           Site?              @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  device         Device?            @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  acknowledgedBy User?              @relation("DiscoveryEventAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  deliveries     AlertDelivery[]
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, severity, acknowledgedAt])
+  @@index([collectorId])
+  @@index([runId])
+  @@index([siteId])
+  @@index([deviceId])
+  @@index([type])
+  @@index([severity])
+  @@index([acknowledgedAt])
+  @@index([createdAt])
+}
+
+enum DiscoveryProposalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model DiscoveryProposal {
+  id             String                  @id @default(cuid())
+  organizationId String
+  siteId         String?
+  createdById    String
+  reviewedById   String?
+  status         DiscoveryProposalStatus @default(PENDING)
+  source         String
+  summary        Json
+  payload        Json
+  reviewNote     String?
+  createdAt      DateTime                @default(now())
+  reviewedAt     DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  createdBy    User         @relation("DiscoveryProposalCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  reviewedBy   User?        @relation("DiscoveryProposalReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([siteId])
+}
+
+model UserNotification {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  type           String
+  title          String
+  body           String?
+  target         String?
+  targetId       String?
+  readAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model IntegrationCredential {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  provider       String
+  encryptedData  String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId, provider])
+}
+
+model MonitoringPolicy {
+  id                       String   @id @default(cuid())
+  organizationId           String   @unique
+  availabilityTargetPct    Float    @default(99.0)
+  latencyWarningMs         Int      @default(250)
+  latencyCriticalMs        Int      @default(1000)
+  latencyAlertsEnabled     Boolean  @default(true)
+  measurementRetentionDays Int      @default(90)
+  incidentAutoResolve      Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model MaintenanceWindow {
+  id             String   @id @default(cuid())
+  organizationId String
+  siteId         String?
+  deviceId       String?
+  title          String
+  startsAt       DateTime
+  endsAt         DateTime
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  device       Device?      @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([siteId])
+  @@index([deviceId])
+  @@index([startsAt])
+  @@index([endsAt])
+}
+
+model Incident {
+  id             String                 @id @default(cuid())
+  organizationId String
+  siteId         String?
+  deviceId       String?
+  title          String
+  severity       DiscoveryEventSeverity @default(WARNING)
+  status         IncidentStatus         @default(OPEN)
+  source         String                 @default("MONITORING")
+  sourceEventId  String?
+  openedAt       DateTime               @default(now())
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  lastEventAt    DateTime               @default(now())
+  notes          String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  device       Device?      @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, status, lastEventAt])
+  @@index([siteId])
+  @@index([deviceId])
+  @@index([status])
+  @@index([severity])
+  @@index([openedAt])
+}
+
+model AvailabilitySample {
+  id             String               @id @default(cuid())
+  organizationId String
+  collectorId    String
+  runId          String
+  siteId         String?
+  deviceId       String
+  status         DiscoveryDeviceState @default(UNKNOWN)
+  latencyMs      Float?
+  checkedAt      DateTime             @default(now())
+  createdAt      DateTime             @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  collector    DiscoveryCollector @relation(fields: [collectorId], references: [id], onDelete: Cascade)
+  run          DiscoveryRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  site         Site?              @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  device       Device             @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, checkedAt])
+  @@index([organizationId, deviceId, checkedAt])
+  @@index([collectorId])
+  @@index([runId])
+  @@index([siteId])
+  @@index([deviceId])
+  @@index([status])
+  @@index([checkedAt])
+}
+
+model AlertSettings {
+  id                  String                 @id @default(cuid())
+  organizationId      String                 @unique
+  emailEnabled        Boolean                @default(false)
+  emailRecipients     String[]               @default([])
+  webhookEnabled      Boolean                @default(false)
+  webhookUrl          String?
+  slackEnabled        Boolean                @default(false)
+  slackWebhookUrl     String?
+  teamsEnabled        Boolean                @default(false)
+  teamsWebhookUrl     String?
+  minSeverity         DiscoveryEventSeverity @default(WARNING)
+  eventTypes          DiscoveryEventType[]   @default([])
+  includeResolvedInfo Boolean                @default(false)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+model AlertDelivery {
+  id             String              @id @default(cuid())
+  organizationId String
+  eventId        String
+  channel        AlertChannel
+  status         AlertDeliveryStatus @default(PENDING)
+  target         String?
+  error          String?
+  sentAt         DateTime?
+  createdAt      DateTime            @default(now())
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        DiscoveryEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([eventId])
+  @@index([channel])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum ReportFormat {
+  CSV
+  PDF
+}
+
+enum ReportType {
+  INVENTORY
+  IPAM
+  CHANGES
+  TOPOLOGY
+  AVAILABILITY
+  RISKS
+  CAPACITY
+}
+
+enum ReportFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
+model ReportSchedule {
+  id                String          @id @default(cuid())
+  organizationId    String
+  name              String
+  type              ReportType
+  format            ReportFormat
+  frequency         ReportFrequency @default(MONTHLY)
+  recipients        String[]        @default([])
+  siteId            String?
+  active            Boolean         @default(true)
+  timezone          String          @default("Europe/Paris")
+  scheduledHour     Int             @default(8)
+  scheduledMinute   Int             @default(0)
+  scheduledWeekday  Int?
+  scheduledMonthDay Int?
+  startAt           DateTime?
+  nextRunAt         DateTime?
+  lastRunAt         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site?        @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([siteId])
+  @@index([type])
+  @@index([active])
+  @@index([nextRunAt])
+}
+
+model DiagramComment {
+  id             String   @id @default(cuid())
+  organizationId String
+  diagramId      String
+  userId         String?
+  body           String
+  x              Float?
+  y              Float?
+  resolved       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  diagram      Diagram      @relation(fields: [diagramId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([diagramId])
+  @@index([userId])
+}
+
+enum EntityCommentTarget {
+  DEVICE
+  IP_PREFIX
+  IP_ADDRESS
+}
+
+model EntityComment {
+  id             String              @id @default(cuid())
+  organizationId String
+  targetType     EntityCommentTarget
+  deviceId       String?
+  ipPrefixId     String?
+  ipAddressId    String?
+  userId         String?
+  body           String
+  resolved       Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  device       Device?      @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  ipPrefix     IpPrefix?    @relation(fields: [ipPrefixId], references: [id], onDelete: Cascade)
+  ipAddress    IpAddress?   @relation(fields: [ipAddressId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, targetType, createdAt])
+  @@index([targetType])
+  @@index([deviceId])
+  @@index([ipPrefixId])
+  @@index([ipAddressId])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Ports & câblage
+// ─────────────────────────────────────────────────────────────
+
+enum PortType {
+  ETHERNET
+  FIBER
+  SFP
+  SFP_PLUS
+  QSFP
+  CONSOLE
+  USB
+  POWER
+  OTHER
+}
+
+model Port {
+  id              String   @id @default(cuid())
+  deviceId        String
+  device          Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  label           String
+  portType        PortType @default(ETHERNET)
+  speed           String? // "1G", "10G", "25G"
+  connectedPortId String?
+  vlan            String?
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([deviceId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Galerie d'images & pièces jointes (le "clic = détail")
+// ─────────────────────────────────────────────────────────────
+
+model DeviceImage {
+  id        String   @id @default(cuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  // Chemin relatif sous UPLOAD_DIR, ex: "images/abcd-ef123456.png"
+  path      String
+  mimeType  String
+  thumbPath String?
+  caption   String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([deviceId])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  filename  String
+  path      String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+
+  @@index([deviceId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Vue baie / rack
+// ─────────────────────────────────────────────────────────────
+
+model Rack {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  siteId         String?
+  site           Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  totalUnits     Int      @default(42) // 42U standard
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  slots        RackSlot[]
+  patchPanels  PatchPanel[]
+
+  @@index([organizationId])
+  @@index([siteId])
+}
+
+model RackSlot {
+  id        String   @id @default(cuid())
+  rackId    String
+  rack      Rack     @relation(fields: [rackId], references: [id], onDelete: Cascade)
+  deviceId  String   @unique
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  startUnit Int // position du U de départ (bas en haut)
+  units     Int      @default(1) // hauteur en U (1U, 2U…)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([rackId])
+}
