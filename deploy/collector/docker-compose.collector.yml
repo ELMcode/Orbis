@@ -1,0 +1,8 @@
+services:
+  orbis-collector:
+    image: orbis-collector:latest
+    container_name: orbis-collector
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - ./collector.env

@@ -42,6 +42,9 @@ deploy/collector/**/dist-*/
 deploy/collector/**/*.deb
 deploy/collector/**/*.msi
 deploy/collector/**/*.exe
+deploy/collector/**/output/
+deploy/releases/*.zip
+deploy/releases/*.tar.gz
 
 # IDE and operating-system files
 .DS_Store
