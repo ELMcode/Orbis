@@ -44,9 +44,9 @@ export function layoutDiagram(nodes: Node[], edges: Edge[], direction: 'TB' | 'L
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT, rank });
   }
 
-  // Ajoute les edges
+  // Add edges.
   for (const edge of edges) {
-    // Oriente l'edge selon le rang (haut → bas) pour un DAG propre
+    // Orient the edge by rank (top to bottom) for a clean DAG.
     const sourceData = nodes.find((n) => n.id === edge.source)?.data as DeviceNodeData | undefined;
     const targetData = nodes.find((n) => n.id === edge.target)?.data as DeviceNodeData | undefined;
     if (sourceData && targetData) {

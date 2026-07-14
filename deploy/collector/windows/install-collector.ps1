@@ -29,24 +29,24 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# ─── Vérifs ────────────────────────────────────────────────
+# ─── Checks ────────────────────────────────────────────────
 $exe = ".\dist\orbis-collector.exe"
 if (-not (Test-Path $exe)) {
   Write-Error "Exécutable introuvable : $exe`nCompilez d'abord : pnpm run build && pnpm run build:exe"
   exit 1
 }
 
-# ─── Répertoires ───────────────────────────────────────────
+# ─── Directories ───────────────────────────────────────────
 $configDir = Join-Path $env:ProgramData "OrbisCollector"
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 New-Item -ItemType Directory -Force -Path $configDir | Out-Null
 
-# ─── Copie des fichiers ────────────────────────────────────
+# ─── Copy files ────────────────────────────────────────────
 Write-Host "Copie des fichiers vers $InstallDir ..."
 Copy-Item -Force $exe $InstallDir
 Copy-Item -Force ".\collector.env.example" $InstallDir
 
-# Copie le template vers ProgramData s'il n'existe pas déjà (ne pas écraser la config utilisateur)
+# Copy the template to ProgramData if it does not exist (do not overwrite user configuration).
 $activeEnv = Join-Path $configDir "collector.env"
 if (-not (Test-Path $activeEnv)) {
   Copy-Item -Force ".\collector.env.example" $activeEnv
@@ -70,7 +70,7 @@ New-Service `
   -BinaryPathName "`"$binPath`"" `
   -StartupType Automatic | Out-Null
 
-# ─── Démarrage après configuration ─────────────────────────
+# ─── Start after configuration ─────────────────────────────
 Write-Host ""
 Write-Host "Collector installé. Configurez d'abord : $activeEnv"
-Write-Host "Puis démarrez-le : Start-Service $ServiceName"
+Write-Host "Then start it with: Start-Service $ServiceName"

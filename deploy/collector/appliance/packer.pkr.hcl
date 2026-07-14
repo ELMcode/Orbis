@@ -1,14 +1,14 @@
 # ─────────────────────────────────────────────────────────────
 # Orbis Collector — VM Appliance (Packer + QEMU + cloud-init)
 #
-# Construit une image VM bootable (Debian 12) avec le collector pré-installé
-# et configuré en service systemd. Sortie : qcow2 (Proxmox/KVM).
-# Conversion vers OVA (VMware) et VHDX (Hyper-V) via qemu-img (voir README).
+# Builds a bootable VM image (Debian 12) with the collector preinstalled
+# and configured as a systemd service. Output: qcow2 (Proxmox/KVM).
+# Convert to OVA (VMware) and VHDX (Hyper-V) with qemu-img (see README).
 #
-# Pré-requis :
+# Prerequisites:
 #   - Packer >= 1.10  (brew install hashicorp/tap/packer)
 #   - QEMU            (brew install qemu)
-#   - Le collector doit être buildé : cd packages/collector && pnpm run build
+#   - Build the collector: cd packages/collector && pnpm run build
 #
 # Build :
 #   cd deploy/collector/appliance
@@ -113,13 +113,13 @@ build {
       # Node.js 22 (NodeSource). Cloud SDK dependencies require Node 22+.
       "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -",
       "sudo apt-get install -y nodejs",
-      # Répertoires
+      # Directories
       "sudo mkdir -p /opt/orbis-collector",
       "sudo chown debian:debian /opt/orbis-collector",
     ]
   }
 
-  # Copie le collector buildé (dist + node_modules prod)
+  # Copy the built collector (dist + production node_modules).
   provisioner "file" {
     source      = "../../../packages/collector/dist"
     destination = "/tmp/collector-dist"
@@ -131,12 +131,12 @@ build {
 
   provisioner "shell" {
     inline = [
-      # Installe les deps prod
+      # Install production dependencies.
       "cd /opt/orbis-collector",
       "cp /tmp/collector-package.json ./package.json",
       "cp -r /tmp/collector-dist ./dist",
       "npm install --omit=dev --ignore-scripts",
-      # Crée l'utilisateur système
+      # Create the system user.
       "sudo useradd -r -s /usr/sbin/nologin orbis || true",
       "sudo chown -R orbis:orbis /opt/orbis-collector",
       # Template de config
@@ -149,7 +149,7 @@ build {
     ]
   }
 
-  # Service systemd
+  # systemd service
   provisioner "file" {
     source      = "../linux/orbis-collector.service"
     destination = "/tmp/orbis-collector.service"
@@ -157,7 +157,7 @@ build {
   provisioner "shell" {
     inline = [
       "sudo mv /tmp/orbis-collector.service /etc/systemd/system/orbis-collector.service",
-      # Adapte le WorkingDirectory + ExecStart pour le chemin d'install
+      # Adapt WorkingDirectory and ExecStart to the installation path.
       "sudo sed -i 's|ExecStart=.*|ExecStart=/usr/bin/node /opt/orbis-collector/dist/index.js|' /etc/systemd/system/orbis-collector.service",
       "sudo sed -i 's|WorkingDirectory=.*|WorkingDirectory=/opt/orbis-collector|' /etc/systemd/system/orbis-collector.service",
       "sudo sed -i 's|EnvironmentFile=.*|EnvironmentFile=/etc/orbis/collector.env|' /etc/systemd/system/orbis-collector.service",
@@ -168,19 +168,19 @@ build {
     ]
   }
 
-  # ─── Cleanup : réduire l'image ──────────────────────────
+  # ─── Cleanup: reduce image size ─────────────────────────
   provisioner "shell" {
     inline = [
       "sudo apt-get clean",
       "sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*",
       "sudo truncate -s 0 /var/log/*.log /var/log/syslog || true",
       "sudo passwd -l debian",
-      "sudo cloud-init clean --logs", # reset pour first-boot du client
+      "sudo cloud-init clean --logs", # reset for the customer's first boot
     ]
   }
 
-  # ─── Post-process : conversion multi-formats ────────────
-  # Note : nécessite qemu-img installé sur le runner de build
+  # ─── Post-process: multi-format conversion ───────────────
+  # Note: qemu-img must be installed on the build runner.
   post-processor "shell-local" {
     inline = [
       "echo '━━━ Appliance construite ━━━'",

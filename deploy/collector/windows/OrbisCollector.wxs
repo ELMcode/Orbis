@@ -2,14 +2,14 @@
 <!--
   Orbis Collector — Installateur MSI (WiX 3.x schema, compatible WiX Toolset 3.11 et 5.x via `wix build`)
 
-  Le collector est compilé en un exécutable unique (orbis-collector.exe) via
-  esbuild + @yao-pkg/pkg (voir packages/collector/package.json → script "build:exe").
-  Ce MSI installe l'exe + un template de config, crée le service Windows, et
-  copie le template vers %ProgramData%\OrbisCollector\collector.env.
+  The collector is compiled into a standalone executable (orbis-collector.exe) with
+  esbuild + @yao-pkg/pkg (see packages/collector/package.json -> "build:exe").
+  This MSI installs the executable and a configuration template, creates the Windows
+  service, and copies the template to %ProgramData%\OrbisCollector\collector.env.
 
   Build :
     cd packages/collector && pnpm run build && pnpm run build:exe
-    # puis depuis deploy/collector/windows :
+    # then from deploy/collector/windows:
     wix build OrbisCollector.wxs -o OrbisCollector.msi
     # (ou candle OrbisCollector.wxs && light OrbisCollector.wixobj)
 -->
@@ -34,20 +34,20 @@
     <Property Id="INSTALLDIR" Value="[ProgramFilesFolder]OrbisCollector\" />
     <Property Id="CONFIGDIR"  Value="[CommonAppDataFolder]OrbisCollector\" />
 
-    <!-- ─── Structure de répertoires ──────────────────────── -->
+    <!-- ─── Directory structure ───────────────────────────── -->
     <Directory Id="TARGETDIR" Name="SourceDir">
 
-      <!-- Fichiers programme -->
+      <!-- Program files -->
       <Directory Id="ProgramFilesFolder">
         <Directory Id="INSTALLFOLDER" Name="OrbisCollector">
           <Component Id="CollectorExe" Guid="B27620B4-BDE1-4AC5-90CB-E5EBF097E3E1">
-            <!-- L'exécutable autonome (Node.js embarqué via pkg) -->
+            <!-- Standalone executable (Node.js bundled with pkg). -->
             <File Id="CollectorExe"
                   Source="$(var.CollectorDist)\orbis-collector.exe"
                   KeyPath="yes"
                   Checksum="yes" />
 
-            <!-- Service Windows : démarre auto, tourne sous LocalSystem (scan réseau) -->
+            <!-- Windows service: starts automatically under LocalSystem (network scanning). -->
             <ServiceInstall Id="CollectorService"
                             Type="ownProcess"
                             Vital="yes"
@@ -73,13 +73,13 @@
         </Directory>
       </Directory>
 
-      <!-- Données de configuration (%ProgramData%) -->
+      <!-- Configuration data (%ProgramData%). -->
       <Directory Id="CommonAppDataFolder">
         <Directory Id="ProgramDataInfra" Name="OrbisCollector">
           <Component Id="CollectorConfigData" Guid="D49841D6-DF53-4979-B2E3-F2F4B1B2C3D4">
-            <!-- Crée le dossier de config au premier install -->
+            <!-- Create the configuration directory during the first install. -->
             <CreateFolder />
-            <!-- Copie le template collector.env (l'utilisateur l'éditera) -->
+            <!-- Copy the collector.env template for the user to edit. -->
             <File Id="CollectorEnvActive"
                   Source="$(var.CollectorWindows)\collector.env.example"
                   Name="collector.env"

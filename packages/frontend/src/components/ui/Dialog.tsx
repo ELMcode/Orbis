@@ -29,7 +29,7 @@ export function DialogContent({
           className={cn(
             'max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto outline-none',
             'rounded-xl border bg-card p-6 shadow-2xl',
-            // Animation d'apparition : on n'utilise QUE opacity/scale pour ne pas
+            // Entry animation: use only opacity/scale to avoid
             // Override centering without translating the content.
             'data-[state=open]:animate-[dialog-in_0.18s_cubic-bezier(0.16,1,0.3,1)]',
             'data-[state=closed]:animate-[dialog-out_0.15s_ease-in]',

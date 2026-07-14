@@ -281,9 +281,9 @@ export default function RackViewPage() {
                       );
                     }
                     if (entry && !entry.isStart) {
-                      return null; // déjà rendu par le slot de départ
+                      return null; // Already rendered by the starting slot.
                     }
-                    // U vide
+                    // Empty rack unit.
                     return (
                       <div key={u} className="flex h-6 border-b">
                         <div className="flex w-7 items-center justify-center border-r bg-muted/50 text-[10px] tabular-nums text-muted-foreground">

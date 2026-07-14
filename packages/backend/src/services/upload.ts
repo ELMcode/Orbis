@@ -13,7 +13,7 @@ import { HttpError } from '../utils/errors.js';
 interface FileKind {
   mime: string;
   ext: string;
-  /** Signature binaire (magic bytes). null pour les types textuels/SVG. */
+  /** Binary signature (magic bytes). Null for text-based types and SVG. */
   magic: ((buf: Buffer) => boolean) | null;
   /** Whether the file must be served as an attachment (SVG XSS protection). */
   forceDownload?: boolean;
