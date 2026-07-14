@@ -1,0 +1,59 @@
+# Dependencies and package-manager state
+node_modules/
+.pnpm-store/
+.yarn/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*service-account*.json
+*credentials*.json
+
+# Build output and generated metadata
+dist/
+build/
+coverage/
+*.tsbuildinfo
+*.map
+*.log
+*.tmp
+*.bak
+
+# Local databases, backups, uploads, and runtime state
+backups/
+uploads/
+data/
+docker/data/
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+
+# Generated collector packages and installers
+deploy/collector/**/dist-*/
+deploy/collector/**/*.deb
+deploy/collector/**/*.msi
+deploy/collector/**/*.exe
+
+# IDE and operating-system files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test and tooling caches
+.cache/
+.eslintcache
+.vite/
+playwright-report/
+test-results/
