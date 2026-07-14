@@ -1,3 +1,5 @@
+name: orbis
+
 # Orbis — Déploiement Docker Compose
 #
 #   docker compose up -d --build
@@ -60,4 +62,6 @@ services:
 
 volumes:
   pgdata:
+    name: orbis_pgdata
   uploads:
+    name: orbis_uploads

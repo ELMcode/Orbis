@@ -96,7 +96,6 @@ export default async function integrationsRoutes(app: FastifyInstance) {
       webhooks: {
         events: OUTBOUND_WEBHOOK_EVENTS,
         signatureHeader: 'X-Orbis-Signature',
-        legacySignatureHeader: 'X-Orbis-Signature',
       },
     });
   });
