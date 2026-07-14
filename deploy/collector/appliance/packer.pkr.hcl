@@ -139,7 +139,7 @@ build {
       # Create the system user.
       "sudo useradd -r -s /usr/sbin/nologin orbis || true",
       "sudo chown -R orbis:orbis /opt/orbis-collector",
-      # Template de config
+      # Configuration template
       "sudo mkdir -p /etc/orbis",
       "echo 'ORBIS_API_URL=' | sudo tee /etc/orbis/collector.env",
       "echo 'ORBIS_COLLECTOR_ID=' | sudo tee -a /etc/orbis/collector.env",
