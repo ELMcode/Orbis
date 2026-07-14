@@ -43,12 +43,12 @@ COPY packages/backend/package.json ./packages/backend/
 RUN pnpm install --filter @orbis/backend --frozen-lockfile
 COPY packages/backend/prisma ./packages/backend/prisma
 
-# Copier le build backend
+# Copy the backend build.
 COPY --from=backend-build /app/packages/backend/dist ./packages/backend/dist
 # Regenerate Prisma Client with engines matching the runtime image.
 RUN cd packages/backend && pnpm exec prisma generate
 
-# Copier le build frontend
+# Copy the frontend build.
 COPY --from=frontend-build /app/packages/frontend/dist ./packages/backend/public
 
 # Collector artifacts downloadable from the application.

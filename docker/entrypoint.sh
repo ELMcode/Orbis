@@ -1,8 +1,8 @@
 #!/bin/sh
 # Orbis - container entrypoint
-#  1. Applique les migrations Prisma
+#  1. Apply Prisma migrations.
 #  2. Seed only when the database is empty (prevents duplicates on restart).
-#  3. Lance le serveur
+#  3. Start the server.
 set -e
 
 echo "→ Application des migrations…"
