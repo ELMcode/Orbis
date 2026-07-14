@@ -60,3 +60,7 @@ Thumbs.db
 .vite/
 playwright-report/
 test-results/
+
+# Downloaded local tooling
+.tools/*
+!.tools/LICENSE.txt
