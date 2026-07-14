@@ -418,4 +418,3 @@ ALTER TABLE "RackSlot" ADD CONSTRAINT "RackSlot_rackId_fkey" FOREIGN KEY ("rackI
 
 -- AddForeignKey
 ALTER TABLE "RackSlot" ADD CONSTRAINT "RackSlot_deviceId_fkey" FOREIGN KEY ("deviceId") REFERENCES "Device"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
