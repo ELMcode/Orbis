@@ -267,7 +267,7 @@ function apiDocsHtml() {
   </div>
   <div class="panel">
     <h2>Webhooks sortants</h2>
-    <p>Les livraisons sont signées avec <code>X-Orbis-Signature: sha256=...</code> via HMAC-SHA256 sur le corps JSON. Les en-têtes historiques <code>X-Orbis-*</code> restent envoyés pour préserver la compatibilité des intégrations existantes.</p>
+    <p>Les livraisons sont signées avec <code>X-Orbis-Signature: sha256=...</code> via HMAC-SHA256 sur le corps JSON.</p>
   </div>
 </main>
 </body>

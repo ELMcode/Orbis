@@ -119,10 +119,6 @@ async function deliverToEndpoint(
         'X-Orbis-Event': eventType,
         'X-Orbis-Delivery': delivery.id,
         'X-Orbis-Signature': `sha256=${signature}`,
-        // Keep the legacy headers during the brand transition so existing integrations continue to verify deliveries.
-        'X-Orbis-Event': eventType,
-        'X-Orbis-Delivery': delivery.id,
-        'X-Orbis-Signature': `sha256=${signature}`,
       },
       body,
       redirect: 'error',
