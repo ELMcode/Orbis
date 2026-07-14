@@ -1,0 +1,8 @@
+ALTER TYPE "AlertChannel" ADD VALUE IF NOT EXISTS 'SLACK';
+ALTER TYPE "AlertChannel" ADD VALUE IF NOT EXISTS 'TEAMS';
+
+ALTER TABLE "AlertSettings"
+  ADD COLUMN "slackEnabled" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "slackWebhookUrl" TEXT,
+  ADD COLUMN "teamsEnabled" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "teamsWebhookUrl" TEXT;

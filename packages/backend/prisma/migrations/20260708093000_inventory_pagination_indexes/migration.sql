@@ -1,0 +1,24 @@
+-- Indexes for paginated high-volume inventory and operations lists.
+CREATE INDEX IF NOT EXISTS "Site_organizationId_name_idx" ON "Site"("organizationId", "name");
+CREATE INDEX IF NOT EXISTS "Diagram_organizationId_updatedAt_idx" ON "Diagram"("organizationId", "updatedAt");
+CREATE INDEX IF NOT EXISTS "Device_organizationId_name_idx" ON "Device"("organizationId", "name");
+CREATE INDEX IF NOT EXISTS "Device_organizationId_updatedAt_idx" ON "Device"("organizationId", "updatedAt");
+CREATE INDEX IF NOT EXISTS "Vrf_organizationId_name_idx" ON "Vrf"("organizationId", "name");
+CREATE INDEX IF NOT EXISTS "Vlan_organizationId_vlanId_idx" ON "Vlan"("organizationId", "vlanId");
+CREATE INDEX IF NOT EXISTS "IpPrefix_organizationId_cidr_idx" ON "IpPrefix"("organizationId", "cidr");
+CREATE INDEX IF NOT EXISTS "IpAddress_organizationId_address_idx" ON "IpAddress"("organizationId", "address");
+CREATE INDEX IF NOT EXISTS "IpAddress_organizationId_status_idx" ON "IpAddress"("organizationId", "status");
+CREATE INDEX IF NOT EXISTS "Provider_organizationId_name_idx" ON "Provider"("organizationId", "name");
+CREATE INDEX IF NOT EXISTS "Circuit_organizationId_status_idx" ON "Circuit"("organizationId", "status");
+CREATE INDEX IF NOT EXISTS "Circuit_organizationId_name_idx" ON "Circuit"("organizationId", "name");
+CREATE INDEX IF NOT EXISTS "PatchPanel_organizationId_name_idx" ON "PatchPanel"("organizationId", "name");
+CREATE INDEX IF NOT EXISTS "Cable_organizationId_label_idx" ON "Cable"("organizationId", "label");
+CREATE INDEX IF NOT EXISTS "DiscoveryRun_organizationId_createdAt_idx" ON "DiscoveryRun"("organizationId", "createdAt");
+CREATE INDEX IF NOT EXISTS "DiscoveryState_organizationId_status_idx" ON "DiscoveryState"("organizationId", "status");
+CREATE INDEX IF NOT EXISTS "DiscoveryState_organizationId_lastSeenAt_idx" ON "DiscoveryState"("organizationId", "lastSeenAt");
+CREATE INDEX IF NOT EXISTS "DiscoveryEvent_organizationId_createdAt_idx" ON "DiscoveryEvent"("organizationId", "createdAt");
+CREATE INDEX IF NOT EXISTS "DiscoveryEvent_organizationId_severity_acknowledgedAt_idx" ON "DiscoveryEvent"("organizationId", "severity", "acknowledgedAt");
+CREATE INDEX IF NOT EXISTS "Incident_organizationId_status_lastEventAt_idx" ON "Incident"("organizationId", "status", "lastEventAt");
+CREATE INDEX IF NOT EXISTS "AvailabilitySample_organizationId_checkedAt_idx" ON "AvailabilitySample"("organizationId", "checkedAt");
+CREATE INDEX IF NOT EXISTS "AvailabilitySample_organizationId_deviceId_checkedAt_idx" ON "AvailabilitySample"("organizationId", "deviceId", "checkedAt");
+CREATE INDEX IF NOT EXISTS "EntityComment_organizationId_targetType_createdAt_idx" ON "EntityComment"("organizationId", "targetType", "createdAt");
