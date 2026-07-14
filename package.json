@@ -1,0 +1,42 @@
+{
+  "name": "orbis",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Orbis — Plateforme professionnelle de cartographie d'infrastructure",
+  "license": "MIT",
+  "packageManager": "pnpm@10.9.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "dev:backend": "pnpm --filter ./packages/backend dev",
+    "dev:frontend": "pnpm --filter ./packages/frontend dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "db:setup": "pnpm --filter ./packages/backend db:setup",
+    "db:migrate": "pnpm --filter ./packages/backend db:migrate",
+    "db:seed": "pnpm --filter ./packages/backend db:seed",
+    "backup:db": "./scripts/backup-postgres.sh",
+    "verify:db-restore": "./scripts/verify-postgres-backup-restore.sh",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "overrides": {
+      "uuid": "^11.1.0"
+    },
+    "onlyBuiltDependencies": [
+      "prisma",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild"
+    ]
+  }
+}

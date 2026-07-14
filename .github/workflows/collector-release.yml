@@ -1,0 +1,128 @@
+name: Collector Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Collector version
+        required: true
+        default: 1.1.0
+
+jobs:
+  linux-deb:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @orbis/collector build
+      - run: sudo apt-get update && sudo apt-get install -y dpkg-dev
+      - run: ./deploy/collector/linux/build-deb.sh "${{ inputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orbis-collector-linux-deb
+          path: deploy/collector/linux/dist-deb/*.deb
+
+  windows-msi:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @orbis/collector build
+      - name: Compile collector en exécutable autonome (pkg)
+        run: pnpm --filter @orbis/collector run build:exe
+      - name: Install WiX Toolset 5
+        run: dotnet tool install --global wix --version 5.0.2
+      - name: Build MSI
+        shell: pwsh
+        env:
+          WIX_DIR: ${{ github.workspace }}\deploy\collector\windows
+          COLLECTOR_DIST: ${{ github.workspace }}\packages\collector\dist
+        run: |
+          # WiX 5 supporte les variables -d pour les $(var.Xxx) du .wxs
+          wix build deploy/collector/windows/OrbisCollector.wxs `
+            -d CollectorDist="$env:COLLECTOR_DIST" `
+            -d CollectorWindows="$env:WIX_DIR" `
+            -o deploy/collector/windows/OrbisCollector-${{ inputs.version }}-x64.msi
+      - name: Verify MSI
+        shell: pwsh
+        run: |
+          $msi = Get-Item deploy/collector/windows/OrbisCollector-*.msi
+          $size = [math]::Round($msi.Length / 1MB, 1)
+          Write-Host "MSI build: $($msi.Name) — $size MB"
+          if ($size -lt 10) { Write-Error "MSI trop petit ($size MB) — payload manquant"; exit 1 }
+      - name: Install, validate and uninstall MSI
+        shell: pwsh
+        run: |
+          $msi = (Get-Item deploy/collector/windows/OrbisCollector-*.msi).FullName
+          $log = Join-Path $env:RUNNER_TEMP 'orbis-msi.log'
+          Start-Process msiexec.exe -ArgumentList @('/i', $msi, '/qn', '/norestart', '/l*v', $log) -Wait -NoNewWindow
+          if ($LASTEXITCODE -ne 0) { Get-Content $log -Tail 100; throw "Installation MSI échouée ($LASTEXITCODE)" }
+          $service = Get-Service -Name 'OrbisCollector' -ErrorAction Stop
+          if (-not (Test-Path "$env:ProgramFiles\OrbisCollector\orbis-collector.exe")) { throw 'Exécutable collector absent après installation' }
+          if (-not (Test-Path "$env:ProgramData\OrbisCollector\collector.env")) { throw 'Configuration collector absente après installation' }
+          if ($service.StartType -ne 'Disabled') { throw "Le service doit rester désactivé avant configuration (actuel: $($service.StartType))" }
+          Start-Process msiexec.exe -ArgumentList @('/x', $msi, '/qn', '/norestart', '/l*v', $log) -Wait -NoNewWindow
+          if ($LASTEXITCODE -ne 0) { Get-Content $log -Tail 100; throw "Désinstallation MSI échouée ($LASTEXITCODE)" }
+          if (Get-Service -Name 'OrbisCollector' -ErrorAction SilentlyContinue) { throw 'Service encore présent après désinstallation' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orbis-collector-windows-msi
+          path: deploy/collector/windows/*.msi
+
+  bundles:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: chmod +x scripts/build-collector-release.sh deploy/collector/linux/build-deb.sh
+      - run: ./scripts/build-collector-release.sh "${{ inputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orbis-collector-release-bundles
+          path: deploy/releases/*
+
+  appliance-qemu:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: hashicorp/setup-packer@v3
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @orbis/collector build
+      - name: Install QEMU
+        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils
+      - name: Validate appliance template
+        working-directory: deploy/collector/appliance
+        run: packer init packer.pkr.hcl && packer validate -var version=${{ inputs.version }} packer.pkr.hcl
+      - name: Build and boot appliance through QEMU
+        working-directory: deploy/collector/appliance
+        run: packer build -var version=${{ inputs.version }} packer.pkr.hcl
+      - name: Check generated image
+        working-directory: deploy/collector/appliance
+        run: |
+          image="output/orbis-collector-${{ inputs.version }}.qcow2"
+          test -s "$image"
+          qemu-img info "$image"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orbis-collector-appliance-qcow2
+          path: deploy/collector/appliance/output/*.qcow2
