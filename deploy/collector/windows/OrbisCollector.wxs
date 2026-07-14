@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Orbis Collector — Installateur MSI (WiX 3.x schema, compatible WiX Toolset 3.11 et 5.x via `wix build`)
+
+  Le collector est compilé en un exécutable unique (orbis-collector.exe) via
+  esbuild + @yao-pkg/pkg (voir packages/collector/package.json → script "build:exe").
+  Ce MSI installe l'exe + un template de config, crée le service Windows, et
+  copie le template vers %ProgramData%\OrbisCollector\collector.env.
+
+  Build :
+    cd packages/collector && pnpm run build && pnpm run build:exe
+    # puis depuis deploy/collector/windows :
+    wix build OrbisCollector.wxs -o OrbisCollector.msi
+    # (ou candle OrbisCollector.wxs && light OrbisCollector.wixobj)
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="Orbis Collector"
+           Language="1033"
+           Version="1.1.0"
+           Manufacturer="Orbis"
+           UpgradeCode="E389FA23-6E43-4B95-A8F0-95E0B7B1B7B4">
+
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Manufacturer="Orbis"
+             Description="Orbis network discovery collector" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Orbis Collector is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- ─── Variables ─────────────────────────────────────── -->
+    <Property Id="INSTALLDIR" Value="[ProgramFilesFolder]OrbisCollector\" />
+    <Property Id="CONFIGDIR"  Value="[CommonAppDataFolder]OrbisCollector\" />
+
+    <!-- ─── Structure de répertoires ──────────────────────── -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+
+      <!-- Fichiers programme -->
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="OrbisCollector">
+          <Component Id="CollectorExe" Guid="B27620B4-BDE1-4AC5-90CB-E5EBF097E3E1">
+            <!-- L'exécutable autonome (Node.js embarqué via pkg) -->
+            <File Id="CollectorExe"
+                  Source="$(var.CollectorDist)\orbis-collector.exe"
+                  KeyPath="yes"
+                  Checksum="yes" />
+
+            <!-- Service Windows : démarre auto, tourne sous LocalSystem (scan réseau) -->
+            <ServiceInstall Id="CollectorService"
+                            Type="ownProcess"
+                            Vital="yes"
+                            Name="OrbisCollector"
+                            DisplayName="Orbis Collector"
+                            Description="Network discovery collector for Orbis"
+                            Start="auto"
+                            Account="LocalSystem"
+                            ErrorControl="normal"
+                            Interactive="no" />
+            <ServiceControl Id="StopCollectorService"
+                            Name="OrbisCollector"
+                            Stop="both"
+                            Remove="uninstall"
+                            Wait="yes" />
+          </Component>
+
+          <Component Id="CollectorConfigTemplate" Guid="C38730C5-CE42-4F86-A1D2-F1F3A0A1B2C3">
+            <File Id="CollectorEnvTemplate"
+                  Source="$(var.CollectorWindows)\collector.env.example"
+                  Name="collector.env.template" />
+          </Component>
+        </Directory>
+      </Directory>
+
+      <!-- Données de configuration (%ProgramData%) -->
+      <Directory Id="CommonAppDataFolder">
+        <Directory Id="ProgramDataInfra" Name="OrbisCollector">
+          <Component Id="CollectorConfigData" Guid="D49841D6-DF53-4979-B2E3-F2F4B1B2C3D4">
+            <!-- Crée le dossier de config au premier install -->
+            <CreateFolder />
+            <!-- Copie le template collector.env (l'utilisateur l'éditera) -->
+            <File Id="CollectorEnvActive"
+                  Source="$(var.CollectorWindows)\collector.env.example"
+                  Name="collector.env"
+                  KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <!-- ─── Feature ───────────────────────────────────────── -->
+    <Feature Id="DefaultFeature"
+             Title="Orbis Collector"
+             Level="1"
+             ConfigurableDirectory="INSTALLFOLDER">
+      <ComponentRef Id="CollectorExe" />
+      <ComponentRef Id="CollectorConfigTemplate" />
+      <ComponentRef Id="CollectorConfigData" />
+    </Feature>
+
+    <!-- ─── UI minimale (licence + dossier) ───────────────── -->
+    <UI>
+      <UIRef Id="WixUI_Minimal" />
+    </UI>
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.CollectorWindows)\license.rtf" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT"
+              Value="Le service Orbis Collector a été installé mais n’est pas démarré.&#xA;&#xA;Éditez le fichier de configuration :&#xA;%ProgramData%\OrbisCollector\collector.env&#xA;&#xA;Puis démarrez-le avec le service OrbisCollector après configuration." />
+  </Product>
+</Wix>

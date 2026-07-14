@@ -1,0 +1,37 @@
+{
+  "name": "@orbis/collector",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "build:exe": "esbuild dist/index.js --bundle --platform=node --format=cjs --target=node20 --outfile=dist/orbis-collector.cjs && pkg dist/orbis-collector.cjs --targets node20-win-x64 --output dist/orbis-collector.exe"
+  },
+  "bin": "dist/index.js",
+  "pkg": {
+    "assets": [],
+    "outputPath": "dist",
+    "targets": [
+      "node20-win-x64"
+    ]
+  },
+  "devDependencies": {
+    "@types/net-snmp": "^3.23.0",
+    "@types/node": "^22.9.0",
+    "@yao-pkg/pkg": "^5.16.1",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-ec2": "^3.1082.0",
+    "@azure/arm-compute": "^24.1.0",
+    "@azure/arm-network": "^37.0.0",
+    "@azure/identity": "^4.13.1",
+    "@google-cloud/compute": "^6.13.0",
+    "net-snmp": "^3.26.3",
+    "undici": "^8.7.0"
+  }
+}

@@ -1,0 +1,21 @@
+[Unit]
+Description=Orbis Collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/orbis-collector/collector.env
+WorkingDirectory=/opt/orbis-collector
+ExecStart=/usr/bin/node /opt/orbis-collector/dist/index.js
+Restart=always
+RestartSec=10
+User=orbis-collector
+Group=orbis-collector
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
